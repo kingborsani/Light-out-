@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Will the Lights Stay On? Texas Grid Climate-Risk Simulator</title>
+<meta name="description" content="Move sliders for temperature, power-plant weatherization, batteries and data-center demand to see when the Texas (ERCOT) grid runs short.">
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --card:#ffffff;
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --thermal:#2a78d6; --wind:#1baf7a; --solar:#eda100; --batt:#6250d6;
+  --line1:#2a78d6; --line2:#eb6834;
+  --good:#0ca30c; --goodtext:#006300; --warn:#fab219; --crit:#d03b3b;
+  --accent:#0b0b0b; --chip:#efeee9;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --card:#1a1a19;
+    --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --thermal:#3987e5; --wind:#199e70; --solar:#c98500; --batt:#9085e9;
+    --line1:#3987e5; --line2:#d95926;
+    --goodtext:#0ca30c; --accent:#f0efec; --chip:#262624;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration-color:var(--axis);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--ink)}
+.wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+header.hero{padding:56px 0 28px}
+.kicker{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+h1{font-size:clamp(34px,5.4vw,60px);line-height:1.02;letter-spacing:-.025em;margin:10px 0 16px;font-weight:800}
+h1 em{font-style:normal;background:linear-gradient(transparent 62%, color-mix(in srgb,var(--solar) 45%,transparent) 62%)}
+.dek{font-size:clamp(17px,2vw,20px);color:var(--ink2);max-width:760px;margin:0}
+h2{font-size:26px;letter-spacing:-.015em;margin:0 0 10px;line-height:1.15}
+h3{font-size:17px;margin:0 0 6px}
+p{margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--ring);border-radius:16px;padding:22px}
+.decision{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;margin:8px 0 28px}
+.badge{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--chip);font-size:26px}
+.decision p{margin:0;color:var(--ink2)}
+@media (max-width:640px){.decision{grid-template-columns:1fr}.badge{display:none}.seg button{padding:9px 14px}} .decision strong{color:var(--ink)}
+
+/* season switch + presets */
+.toolbar{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin:0 0 16px}
+.seg{display:inline-flex;background:var(--chip);border-radius:999px;padding:4px}
+.seg button{all:unset;cursor:pointer;padding:9px 18px;border-radius:999px;font-weight:650;font-size:15px;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid var(--line1);outline-offset:2px}
+.presets{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.presets span{font-size:13px;color:var(--muted);margin-right:2px}
+.presets button{all:unset;cursor:pointer;font-size:13.5px;padding:7px 12px;border:1px solid var(--ring);border-radius:999px;background:var(--card);color:var(--ink2)}
+.presets button:hover{color:var(--ink);border-color:var(--axis)}
+.presets button:focus-visible{outline:2px solid var(--line1);outline-offset:2px}
+
+/* main layout */
+.sim{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+@media (max-width:900px){.sim{grid-template-columns:1fr}}
+.controls{position:sticky;top:12px}
+@media (max-width:900px){.controls{position:static}}
+.ctl{padding:14px 0;border-bottom:1px solid var(--grid)}
+.ctl:first-child{padding-top:0} .ctl:last-child{border-bottom:0;padding-bottom:0}
+.ctl-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ctl label{font-weight:700;font-size:15px}
+.ctl .tag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:2px}
+.ctl output{font-weight:800;font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .help{font-size:13.5px;color:var(--ink2);margin:6px 0 0;line-height:1.45}
+.ctl .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+input[type=range]{width:100%;margin:10px 0 2px;accent-color:var(--ink);height:28px;cursor:pointer}
+.ticks{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.status{display:flex;gap:14px;align-items:center;padding:16px 18px;border-radius:14px;margin-bottom:14px;border:1px solid var(--ring);background:var(--card)}
+.status .icon{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-weight:900;color:#fff;flex:none}
+.status.ok .icon{background:var(--good)} .status.emergency .icon{background:var(--warn);color:#0b0b0b} .status.outage .icon{background:var(--crit)}
+.status .title{font-weight:800;font-size:19px;line-height:1.2}
+.status .why{font-size:14px;color:var(--ink2)}
+.status.outage{border-color:color-mix(in srgb,var(--crit) 45%,transparent)}
+.status.emergency{border-color:color-mix(in srgb,var(--warn) 60%,transparent)}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media (max-width:640px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--card);border:1px solid var(--ring);border-radius:12px;padding:12px 14px}
+.tile .lab{font-size:12.5px;color:var(--ink2);line-height:1.3}
+.tile .val{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:4px;line-height:1.1}
+.tile .val small{font-size:14px;font-weight:600;color:var(--ink2);letter-spacing:0}
+.tile .note{font-size:12px;color:var(--muted);margin-top:2px}
+
+.chart-card{background:var(--surface);border:1px solid var(--ring);border-radius:16px;padding:18px 18px 12px;margin-bottom:14px;position:relative}
+.chart-card h3{font-size:16px;margin:0}
+.chart-card .cap{font-size:13.5px;color:var(--ink2);margin:2px 0 8px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink2);margin:4px 0 6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend i.line{height:3px;border-radius:2px;width:18px;vertical-align:3px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font:11.5px system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--muted)}
+svg .lbl{fill:var(--ink2);font-weight:600}
+svg .lbl-strong{fill:var(--ink);font-weight:700}
+.tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--ring);box-shadow:0 6px 24px rgba(0,0,0,.14);border-radius:10px;padding:10px 12px;font-size:13px;min-width:200px;opacity:0;transition:opacity .1s;z-index:5}
+.tip.show{opacity:1}
+.tip b{display:block;margin-bottom:4px;font-size:13.5px}
+.tip .row{display:flex;justify-content:space-between;gap:14px;font-variant-numeric:tabular-nums}
+.tip .row span:first-child{color:var(--ink2)}
+.tip .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+
+details.table{margin-top:4px}
+details.table summary{cursor:pointer;font-size:13.5px;color:var(--ink2);padding:4px 0}
+table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink2);font-weight:650}
+.tablewrap{overflow-x:auto;max-height:360px;overflow-y:auto}
+
+section{margin:40px 0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.notice li{margin-bottom:10px}
+.notice li b{color:var(--ink)}
+.notice{color:var(--ink2);padding-left:20px}
+.eq{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--chip);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:pre;line-height:1.6;color:var(--ink)}
+.muted{color:var(--ink2)}
+.sources li{margin-bottom:6px;color:var(--ink2);font-size:14.5px}
+footer{padding:30px 0 60px;color:var(--muted);font-size:14px;border-top:1px solid var(--grid);margin-top:40px}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink2);vertical-align:2px}
+.formula{font-weight:800;font-size:clamp(18px,2.4vw,24px);letter-spacing:-.01em;margin:6px 0 10px}
+.formula span{padding:2px 8px;border-radius:8px;background:var(--chip)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Texas power grid · Climate risk · 2026 data</div>
+  <h1>Will the lights <em>stay on</em>?</h1>
+  <p class="dek">Texas runs its own power grid, ERCOT. It just set an all-time demand record of 91.1 gigawatts on July 22, 2026. In 2021 it nearly collapsed in a freeze. Move the sliders to see what keeps the power on for more than 27 million Texas customers, and what leaves millions in the dark.</p>
+</header>
+
+<div class="card decision">
+  <div class="badge" aria-hidden="true">⚖️</div>
+  <div>
+    <h2 style="font-size:20px;margin-bottom:6px">The decision</h2>
+    <p><strong>You are a commissioner on the Public Utility Commission of Texas</strong>, the agency that oversees ERCOT and writes the rules for weatherizing power plants. Money and political capital are limited, so you have to choose where to push next: <strong>harden power plants and the gas supply against extreme weather</strong>, <strong>add more batteries</strong>, or <strong>slow down the wave of new data-center demand</strong>. Climate change keeps raising summer peaks while you decide. This page lets you test each choice against heat waves and freezes.</p>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="seg" role="group" aria-label="Season">
+    <button id="btn-summer" aria-pressed="true">☀️ Summer heat wave</button>
+    <button id="btn-winter" aria-pressed="false">❄️ Winter freeze</button>
+  </div>
+  <div class="presets" id="presets"><span>Try:</span></div>
+</div>
+
+<div class="sim">
+  <!-- ===== Controls ===== -->
+  <div class="card controls" aria-label="Scenario controls">
+    <div class="ctl">
+      <span class="tag">Hazard</span>
+      <div class="ctl-head"><label for="s-temp">How hot / cold is the day?</label><output id="o-temp" for="s-temp"></output></div>
+      <input type="range" id="s-temp">
+      <div class="ticks" id="t-temp"></div>
+      <div class="sub" id="temp-sub"></div>
+      <p class="help" id="temp-help"></p>
+    </div>
+    <div class="ctl">
+      <span class="tag">Exposure</span>
+      <div class="ctl-head"><label for="s-load">New demand (data centers, etc.)</label><output id="o-load" for="s-load"></output></div>
+      <input type="range" id="s-load" min="0" max="40" step="1">
+      <div class="ticks"><span>0 (today)</span><span>20</span><span>40 GW</span></div>
+      <p class="help">Extra round-the-clock load added <em>without</em> new power plants. ERCOT's adjusted forecast has peak demand reaching about <b>145 GW by 2031</b>, mostly from data centers.</p>
+    </div>
+    <div class="ctl">
+      <span class="tag">Vulnerability</span>
+      <div class="ctl-head"><label for="s-wx">Weatherization of plants &amp; gas supply</label><output id="o-wx" for="s-wx"></output></div>
+      <input type="range" id="s-wx" min="0" max="95" step="1">
+      <div class="ticks"><span>0% (2021 Uri)</span><span>67% (default)</span><span>95%</span></div>
+      <p class="help">The share of weather-caused power-plant failures that get prevented. <b>0%</b> means plants freeze up the way they did in 2021. <b>67%</b> is what federal investigators said protecting four kinds of equipment could have prevented. Nobody knows today's exact level, so try both ends.</p>
+    </div>
+    <div class="ctl">
+      <span class="tag">Adaptation</span>
+      <div class="ctl-head"><label for="s-batt">Battery storage</label><output id="o-batt" for="s-batt"></output></div>
+      <input type="range" id="s-batt" min="0" max="60" step="0.1">
+      <div class="ticks"><span>0</span><span>21.6 (Jul 2026)</span><span>60 GW</span></div>
+      <p class="help">Batteries charge when power is plentiful and discharge for about <b>2 hours</b> when it's tight. Texas went from 5.1 GW in 2023 to 21.6 GW in July 2026.</p>
+    </div>
+  </div>
+
+  <!-- ===== Outputs ===== -->
+  <div>
+    <div class="status ok" id="status" role="status" aria-live="polite">
+      <div class="icon" id="status-icon">✓</div>
+      <div><div class="title" id="status-title"></div><div class="why" id="status-why"></div></div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="lab">Peak demand</div><div class="val" id="k-peak"></div><div class="note" id="k-peak-n"></div></div>
+      <div class="tile"><div class="lab">Tightest hour</div><div class="val" id="k-tight"></div><div class="note" id="k-tight-n"></div></div>
+      <div class="tile"><div class="lab">Rolling outages</div><div class="val" id="k-shed"></div><div class="note" id="k-shed-n"></div></div>
+      <div class="tile"><div class="lab">Homes in the dark at worst hour</div><div class="val" id="k-homes"></div><div class="note" id="k-homes-n"></div></div>
+    </div>
+
+    <div class="chart-card" id="card1">
+      <h3 id="c1-title">Supply vs. demand over the day</h3>
+      <p class="cap">Stacked bars show the power available each hour (GW). The line is how much power Texans want to use. Whenever the line rises above the stack, the grid is short.</p>
+      <div class="legend" id="legend1"></div>
+      <svg id="chart1" viewBox="0 0 760 330" role="img" aria-labelledby="c1-title"></svg>
+      <div class="tip" id="tip1"></div>
+      <details class="table"><summary>Show the hourly numbers as a table</summary><div class="tablewrap"><table id="tbl"></table></div></details>
+    </div>
+    <div class="chart-card" id="card2">
+  <h3 id="c2-title">Where is the cliff? Worst-hour rolling outages vs. temperature</h3>
+  <p class="cap" id="c2-cap"></p>
+  <div class="legend" id="legend2"></div>
+  <svg id="chart2" viewBox="0 0 760 300" role="img" aria-labelledby="c2-title"></svg>
+  <div class="tip" id="tip2"></div>
+</div>
+  </div>
+</div>
+
+
+
+<section>
+  <h2>What's going on, in plain language</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>The issue</h3>
+      <p class="muted">Electricity has to be made at the same moment it's used. Texas has only small links to other grids, so when demand outruns supply, ERCOT has to cut power to whole neighborhoods on purpose (rolling outages). Otherwise the grid could collapse for weeks. Extreme heat and extreme cold are when that's most likely.</p>
+    </div>
+    <div class="card">
+      <h3>The course concept</h3>
+      <div class="formula"><span>Risk = Hazard × Exposure × Vulnerability</span></div>
+      <p class="muted"><b>Hazard</b> is the temperature. <b>Exposure</b> is how much demand the grid has to serve. <b>Vulnerability</b> is how easily the power plants fail. Batteries are an <b>adaptation</b> that helps with some hazards but not others. Notice that the risk multiplies: the same freeze can be a non-event or a disaster depending on the other sliders.</p>
+    </div>
+    <div class="card">
+      <h3>Why freezes are so dangerous: correlated failure</h3>
+      <p class="muted">In a freeze, the cold raises demand (60% of Texas homes heat with electricity) <i>and</i> knocks out supply (frozen equipment, gas wells that stop flowing, iced-up wind turbines), all at the same moment. In February 2021, 52 GW of generation (48.6% of installed capacity) was forced offline at the worst point, and ERCOT cut 20 GW of load.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What to notice when you move the sliders</h2>
+  <div class="card">
+  <ol class="notice">
+    <li><b>Summer trouble comes after sunset, not at the afternoon peak.</b> Pick the summer heat wave, turn the temperature up to ~95 °F, and drag the batteries to 0. The tightest hours land around 7–10 p.m., when solar fades but air conditioners are still running. ERCOT sees the same pattern: its riskiest hours are now 8–10 p.m. Now add batteries back and watch the evening gap close.</li>
+    <li><b>Weatherization is the whole story in a freeze.</b> Pick the winter freeze. At 32 °F the weatherization slider barely matters. Below about 20 °F it decides whether the lights stay on, which is hazard × vulnerability in action. In the cliff chart below, the orange curve (2021-era equipment) falls off the cliff at a much warmer temperature than the blue one.</li>
+    <li><b>Batteries are built for short peaks, not long freezes.</b> In summer, batteries refill every afternoon from cheap solar and cover the evening. Now set Uri-level cold and hover over the morning hours: the batteries are drained by about 8 a.m. On a freezing day there's little spare power to refill them. This model simulates only one day, starting with batteries half full, so it is <i>generous</i> to batteries. Uri lasted most of a week.</li>
+    <li><b>New demand moves the cliff to milder weather.</b> Add 20 GW of new demand with no new power plants and an ordinary record-heat day becomes rolling outages. Exposure turns a weather event that used to be normal into a disaster.</li>
+    <li><b>Climate change pushes the summer hazard slider to the right.</b> Each extra 1 °F on a hot day adds about 1.6 GW of demand, roughly 400,000 homes' worth. Extreme cold is getting rarer as Texas warms, but it hasn't gone away, and more homes now heat with electricity. So a freeze that does happen hits harder than it used to.</li>
+  </ol>
+  </div>
+</section>
+
+<section>
+  <h2>The climate connection</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>☀️ Hotter summers</h3>
+      <p class="muted">The Texas State Climatologist expects <b>100-degree days to be about four times as common by 2036 as in the 1970s–80s</b>, and finds that extreme heat has become more frequent and more severe. On this page, a record-heat day (≈91–92 °F statewide average) moves toward what a "normal hot day" looks like as the climate warms.</p>
+    </div>
+    <div class="card">
+      <h3>❄️ Fewer, but not zero, freezes</h3>
+      <p class="muted">The same report finds that <b>extreme cold has become less frequent and less severe</b> as Texas warms, and says events like February 2021 are extremely rare. Rare doesn't mean impossible, though. Lee &amp; Dessler (2022) showed that ERCOT's forecasts, built only on recent weather, badly underestimated the 2021 demand. They estimated it actually peaked near 82 GW.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>How the model works</h2>
+  <div class="card">
+    <p class="muted">This is a deliberately simple, transparent model of one 24-hour day on the ERCOT grid, rebuilt from public numbers. It's an <b>educational</b> model, not ERCOT's. ERCOT runs thousands of weather years, unit by unit. Here, every number comes from the sources listed below or is a stated assumption.</p>
+    <p class="muted"><b>Temperature</b> is the <i>population-weighted statewide daily average</i>, the measure Lee &amp; Dessler (2022) used to link weather to ERCOT demand. Daily averages run well below afternoon highs. On July 22, 2023, a record-demand stretch, it was 91.5 °F, against a long-term normal of 85.8 °F. Uri's coldest day averaged about 12 °F across Texas.</p>
+<div class="eq">Peak demand (summer) = 94.5 GW + 1.6 GW/°F × (T − 92 °F)    ← ≈ the Jul 22 2026 record before demand response
+Peak demand (winter) = 59.9 + 0.1115 × (60 − T)^1.5 GW           ← ≈ 97 GW at Uri's 12 °F (ERCOT's own estimate)
+Hourly demand        = peak × typical hourly shape + new demand
+Gas/coal/nuclear out (winter) = 6% + (1 − weatherization) × 27% × cold-stress(T)   ← 33% at Uri with 0% weatherization
+Gas/coal/nuclear out (summer) = 7% + small heat penalty (≈10% on a 92 °F day)
+Solar, wind          = installed GW × typical hourly output (wind loses up to ~half to icing in deep cold)
+Batteries            = charge from spare power; discharge (2-hour) saved for the tightest hours
+Rolling outages      = demand − supply − 3.3 GW flexible loads − 2.5 GW emergency tools + 1.5 GW minimum reserve</div>
+    <p class="muted" style="margin-top:12px"><b>Status rules.</b> "Lights stay on" means at least 2.5 GW to spare. "Emergency" means reserves dropped below 2.5 GW (ERCOT's EEA level 1) but emergency tools and large flexible loads covered the gap. "Rolling outages" means reserves would fall below 1.5 GW even after those tools, which is when ERCOT orders controlled outages.</p>
+    <p class="muted"><b>Calibration checks.</b> With 0% weatherization at 12 °F, the model knocks out 33% of gas/coal/nuclear capacity, the same share ERCOT reported for Uri. At 92 °F with no batteries it shows an evening emergency with no outages, like the September 2023 emergency. With today's settings at Uri's temperature it shows large rolling outages. ERCOT itself put the chance of controlled outages at 54% if a 2021-scale freeze happened in winter 2025–26. NERC's extreme-cold scenario showed a ~15 GW shortfall.</p>
+    <p class="muted"><b>Limits.</b> The model ignores transmission bottlenecks, imports over the small DC ties, multi-day storms (Uri lasted most of a week), and the uncertainty in every number. It assumes every working plant is available when needed. Treat the outputs as "about this big," not as forecasts.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Sources</h2>
+  <div class="card">
+  <ol class="sources">
+    <li>ERCOT (W. Rickerson), presentation, Jan 16, 2026: installed capacity as of Aug 1, 2025 (gas 68.5 GW, coal 14.7, nuclear 5.3, wind 40.6, solar 33.4, storage 14.6), demand records, winter/summer resource availability. <a href="https://www.landman.org/asset/77F45083%2D772B%2D467F%2DAB53AAD159E61A1D">PDF</a></li>
+    <li>ERCOT, <i>Monthly Operational Overview, July 2026</i>: record 91,134 MW on 7/22/2026. <a href="https://www.ercot.com/files/docs/2026/08/17/ERCOT-Monthly-Operational-Overview-July-2026.pdf">PDF</a></li>
+    <li>ERCOT, <i>Summer 2026 Operational and Market Review</i>: ~3.3 GW of crypto curtailment on the record day (≈94.9 GW without demand response); peak net load at 8–10 p.m. <a href="https://www.ercot.com/files/docs/2026/09/07/15-Summer-2026-Operational-and-Market-Review.pdf">PDF</a></li>
+    <li>IEEFA (Wamsted &amp; Feaster), "Despite record summer demand, solar, storage kept ERCOT prices low," Nov 2, 2026: solar 41,185 MW and batteries 21,564 MW in July 2026, vs. 22,153 MW and 5,090 MW in 2023. <a href="https://ieefa.org/resources/despite-record-summer-demand-solar-storage-kept-ercot-prices-low">Link</a></li>
+    <li>ERCOT, <i>Fact Sheet</i>: wind 40,566 MW installed (Oct 2025); 1 MW serves about 250 homes during peak hours. <a href="https://www.ercot.com/files/docs/2025/12/15/4-Comments-by-the-ERCOT-President-and-CEO.pdf">PDF</a></li>
+    <li>ERCOT CEO Update to the Board, Feb 2026: peak outaged thermal capacity by winter storm (Uri 33.1%, Elliott 18.6%, Heather 10.5%, Fern 7.1%). <a href="https://www.ercot.com/files/docs/2026/02/03/11-CEO-Update.pdf">PDF</a></li>
+    <li>Lee, J. &amp; A. E. Dessler (2022), "The Impact of Neglecting Climate Change and Variability on ERCOT's Forecasts of Electricity Demand in Texas," <i>Weather, Climate, and Society</i> 14, 499–505. <a href="https://doi.org/10.1175/WCAS-D-21-0140.1">doi:10.1175/WCAS-D-21-0140.1</a></li>
+    <li>S&amp;P Global, July 2023: population-weighted ERCOT temperature 91.5 °F on July 22, 2023 vs. 85.8 °F normal. <a href="https://www.spglobal.com/energy/en/news-research/latest-news/electric-power/072326-triple-digit-high-temperatures-boost-texas-power-grid-to-new-peakload-records">Link</a></li>
+    <li>S&amp;P Global, Feb 24, 2021: 52,277 MW forced out during Uri, 20 GW load shed, estimated 76.8 GW demand without load shed. <a href="https://www.spglobal.com/commodity-insights/en/news-research/latest-news/electric-power/022421-ercot-lost-almost-half-of-generation-capacity-in-storm-causing-20-gw-load-shed">Link</a></li>
+    <li>FERC/NERC, Final Report on the February 2021 Freeze: protecting four types of plant components could have cut ERCOT outages by 67%. <a href="https://ferc.gov/news-events/news/final-report-february-2021-freeze-underscores-winterization-recommendations">Link</a></li>
+    <li>Dallas Express / Houston Chronicle reporting on ERCOT's winter 2025–26 outlook (Dec 13, 2025): a repeat of 2021 could push demand above 97 GW, with a 54% risk of controlled outages; NERC's 14.9 GW shortfall scenario. <a href="https://dallasexpress.com/state/is-texas-ai-boom-creating-the-next-big-power-grid-crisis/">Link</a></li>
+    <li>ERCOT, <i>2026 Energy Emergency Alert Overview</i>: EEA1 below 2,500 MW of reserves, EEA3 below 1,500 MW; about 2,500 MW of extra emergency capacity. <a href="https://www.ercot.com/files/docs/2023/06/20/2026-Energy-Emergency-Alert-Overview.pdf">PDF</a></li>
+    <li>ERCOT, 2025 Long-Term Load Forecast update: utility-reported 218 GW peak by 2031, adjusted by ERCOT to 145 GW; data centers are the main driver. <a href="https://ercot.com/files/docs/2025/04/09/ERCOT-Monthly-March2025.pdf">PDF</a></li>
+    <li>ERCOT, <i>Monthly Report, January 2026</i>: Winter Storm Fern, with 13.5 GW of wind unavailable to icing and a forecast peak of 84.5 GW. <a href="https://www.ercot.com/files/docs/2026/02/13/ERCOT-Monthly-January-2026-FINAL.pdf">PDF</a></li>
+    <li>Study of rising cold-weather demand in ERCOT (2022): the share of Texas households heating with electricity rose from 52% to 61% in 15 years, adding ~10 GW to demand at Uri's peak. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9010639">Link</a></li>
+    <li>NAESB presentation on the February 2021 event: 3.7 million customer outages across Texas (used for ≈185 homes per MW in winter). <a href="https://naesb.org/pdf4/bd042221w3.pdf">PDF</a></li>
+    <li>Nielsen-Gammon, J. et al. (2024), <i>Assessment of Historic and Future Trends of Extreme Weather in Texas, 1900–2036: 2024 Update</i>, Office of the Texas State Climatologist. <a href="https://climatexas.tamu.edu/products/special-reports/2024%20Climate%20Report-compressed.pdf">PDF</a></li>
+  </ol>
+  <p class="muted" style="font-size:13.5px;margin-top:10px">Assumptions without a single source: the hourly demand/solar/wind shapes (typical ERCOT summer and winter peak days), the 2-hour battery duration and 85% round-trip efficiency, the 1.6 GW/°F summer sensitivity (about the gap between ordinary and record summer peaks), and the exact shape of the cold-outage curve, which is fitted to pass through the storm figures above.</p>
+  </div>
+</section>
+
+<footer>
+  Built for a climate-risk course group project. Group members: <b>[Name 1]</b>, <b>[Name 2]</b>, <b>[Name 3]</b>, <b>[Name 4]</b>. The whole model runs in your browser; the code is in this project's GitHub repository (index.html).
+</footer>
+</div>
+
+<script>
+/* ===== Texas grid model (ERCOT, 2026) =====
+   Every constant below is cited on the page in "How the model works" and "Sources". */
+const GRID = {
+  thermalGW: 88.5,   // gas 68.5 + coal 14.7 + nuclear 5.3 (ERCOT, installed Aug 1 2025)
+  solarGW: 41.2,     // installed July 2026 (IEEFA, from ERCOT data)
+  windGW: 40.6,      // installed Oct 2025 (ERCOT)
+  batteryGW: 21.6,   // installed July 2026 (IEEFA, from ERCOT data)
+  batteryHours: 2.0, // usable hours at full power (queue average is ~2.4 h: 398 GWh / 166 GW)
+  batteryEff: 0.85,  // round-trip efficiency
+  flexLoadGW: 3.3,   // crypto / large flexible loads that cut back when the grid is tight (Jul 22 2026)
+  eeaToolsGW: 2.5,   // extra capacity ERCOT can call on in an Energy Emergency Alert
+  minReserveGW: 1.5, // below this, ERCOT orders rotating outages (EEA3)
+  homesPerMW: { summer: 250, winter: 185 }
+};
+
+// Hourly shapes, hour 0 = midnight to 1 a.m. (local time)
+const SHAPE = {
+  summer: {
+    demand: [0.80,0.76,0.73,0.71,0.70,0.70,0.71,0.73,0.76,0.80,0.84,0.88,0.92,0.95,0.97,0.99,0.99,1.00,1.00,0.98,0.96,0.93,0.89,0.84],
+    solar:  [0,0,0,0,0,0,0.02,0.12,0.30,0.48,0.62,0.72,0.78,0.81,0.81,0.77,0.70,0.58,0.42,0.22,0.05,0,0,0],
+    wind:   [0.32,0.32,0.31,0.30,0.29,0.27,0.25,0.22,0.19,0.16,0.14,0.13,0.13,0.13,0.13,0.14,0.15,0.17,0.19,0.22,0.25,0.28,0.30,0.32]
+  },
+  winter: {
+    demand: [0.90,0.89,0.89,0.90,0.92,0.95,0.98,1.00,0.99,0.95,0.90,0.86,0.83,0.81,0.80,0.80,0.82,0.87,0.92,0.93,0.92,0.91,0.90,0.90],
+    solar:  [0,0,0,0,0,0,0,0.02,0.12,0.30,0.45,0.55,0.58,0.57,0.52,0.42,0.25,0.06,0,0,0,0,0,0],
+    wind:   [0.30,0.30,0.30,0.30,0.30,0.30,0.30,0.29,0.28,0.27,0.26,0.25,0.25,0.25,0.26,0.27,0.28,0.29,0.30,0.30,0.30,0.30,0.30,0.30]
+  }
+};
+
+// How hard the cold is hitting equipment: 0 at 35 °F, 1 at Uri's ~12 °F statewide average
+function coldStress(T) { return Math.pow(Math.max(0, (35 - T) / 23), 1.5); }
+
+// Peak-hour demand (GW) from weather alone, before any new large loads
+function weatherPeak(season, T) {
+  if (season === 'summer') return 94.5 + 1.6 * (T - 92);              // 1.6 GW per °F
+  return 59.9 + 0.1115 * Math.pow(Math.max(0, 60 - T), 1.5);           // ≈97 GW at 12 °F
+}
+
+// Share of thermal (gas/coal/nuclear) capacity that is broken, frozen or short of fuel
+function thermalOutage(season, T, wx) {
+  if (season === 'summer') {
+    const heat = Math.max(0, (T - 86) / 6);
+    return Math.min(0.25, 0.07 + (1 - 0.5 * wx) * 0.05 * heat);
+  }
+  return Math.min(0.60, 0.06 + (1 - wx) * 0.27 * coldStress(T));
+}
+
+// Batteries are dispatched like a careful grid operator would: they hold their charge for the
+// worst hours. We try a range of "only discharge when the shortage is bigger than θ" thresholds
+// and keep the one that leaves the smallest worst-hour outage (then the least energy unserved).
+function simulate(p) {
+  let best = null;
+  for (let k = 0; k <= 40; k++) {
+    const r = simulateOnce(p, k * 0.75);
+    const score = r.peakShed * 1e6 + r.unserved * 1e3 + r.unmet;
+    if (!best || score < best.score - 1e-9) best = { ...r, score };
+    if (p.batt === 0) break;
+  }
+  return best;
+}
+
+function simulateOnce(p, theta) {
+  // p = {season, T (°F), wx (0..1 weatherization), batt (GW), newLoad (GW)}
+  const s = SHAPE[p.season];
+  const peakW = weatherPeak(p.season, p.T);
+  const fOut = thermalOutage(p.season, p.T, p.wx);
+  const cs = coldStress(p.T);
+  const thermal = GRID.thermalGW * (1 - fOut);
+  const iceLoss = p.season === 'winter' ? Math.min(0.55, 0.45 * Math.min(1.2, cs)) : 0;
+  const snowLoss = p.season === 'winter' ? 0.5 * Math.min(1, cs) : 0;
+  const Emax = p.batt * GRID.batteryHours;
+  let E = p.season === 'summer' ? 0.3 * Emax : 0.5 * Emax;   // charge at midnight
+  const buffer = GRID.flexLoadGW + GRID.eeaToolsGW - GRID.minReserveGW; // 4.3 GW
+  const hours = [];
+  for (let h = 0; h < 24; h++) {
+    const demand = s.demand[h] * peakW + p.newLoad;
+    const solar = GRID.solarGW * s.solar[h] * (1 - snowLoss);
+    const wind = GRID.windGW * s.wind[h] * (1 - iceLoss);
+    const base = thermal + solar + wind;
+    let margin = base - demand;
+    let batt = 0;
+    if (margin > 3 && E < Emax) {                       // spare power: charge
+      const c = Math.min(p.batt, margin - 3, (Emax - E) / GRID.batteryEff);
+      E += c * GRID.batteryEff;
+    } else if (margin < 3 - theta && E > 0) {           // tight: discharge
+      batt = Math.min(p.batt, 3 - margin, E);
+      E -= batt;
+    }
+    margin = base + batt - demand;
+    const shed = Math.max(0, -margin - buffer);
+    const status = shed > 0 ? 'outage' : (margin < 2.5 ? 'emergency' : 'ok');
+    hours.push({ h, demand, thermal, solar, wind, batt, margin, shed, status, soc: Emax ? E / Emax : 0 });
+  }
+  const peakShed = Math.max(...hours.map(x => x.shed));
+  const shedHours = hours.filter(x => x.shed > 0).length;
+  const emergencyHours = hours.filter(x => x.status !== 'ok').length;
+  const unserved = hours.reduce((a, x) => a + x.shed, 0);
+  const unmet = hours.reduce((a, x) => a + Math.max(0, 2.5 - x.margin), 0);
+  const tight = hours.reduce((a, x) => (x.margin < a.margin ? x : a), hours[0]);
+  return {
+    hours, peakShed, shedHours, emergencyHours, unserved, unmet, tight, fOut,
+    peakDemand: Math.max(...hours.map(x => x.demand)),
+    homesDark: peakShed * 1000 * GRID.homesPerMW[p.season]
+  };
+}
+
+if (typeof module !== 'undefined') module.exports = { GRID, simulate, weatherPeak, thermalOutage, coldStress };
+
+</script>
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const fmt = (x, d=1) => x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const hourLabel = h => { const hh = h % 24; const ap = hh < 12 ? 'a.m.' : 'p.m.'; const n = hh % 12 === 0 ? 12 : hh % 12; return `${n} ${ap}`; };
+const hourShort = h => { const hh = h % 24; const n = hh % 12 === 0 ? 12 : hh % 12; return n + (hh < 12 ? 'a' : 'p'); };
+
+const SEASON = {
+  summer: { min:84, max:100, step:0.5, def:92, ticks:['84','86 normal','92 record','100 °F'],
+    help:'Statewide average for the whole day, weighted by where people live. A 92 °F average matches recent record-demand days (July 2023, July 2026); 86 °F is a normal hot July day.',
+    sub: T => `≈ afternoon highs near ${Math.round(T + 10)} °F in the big cities`,
+    marks:[{T:85.8,label:'Normal late July'},{T:91.5,label:'Record-demand day (2023)'}],
+    counter:{ key:'batt', value:5.1, label:'With 2023-size batteries (5.1 GW)' },
+    cap:'Each point reruns the whole day at that temperature with your other slider settings. The orange line shows the same day with only 2023\'s battery fleet. Batteries push summer\'s cliff to much hotter days.'
+  },
+  winter: { min:0, max:45, step:0.5, def:18, ticks:['0','12 Uri','32','45 °F'],
+    help:'Statewide average for the whole day, weighted by where people live. Uri\'s coldest day (Feb 2021) averaged about 12 °F; 32 °F is an ordinary hard freeze.',
+    sub: T => `≈ overnight lows near ${Math.round(T - 8)} °F in the big cities`,
+    marks:[{T:12,label:'Uri, Feb 2021'},{T:32,label:'Freezing'}],
+    counter:{ key:'wx', value:0, label:'With 2021-era equipment (0% weatherized)' },
+    cap:'Each point reruns the whole day at that temperature with your other slider settings. The orange line shows the same day with 2021-era (un-weatherized) plants and gas supply. Weatherization pushes winter\'s cliff to much colder days.'
+  }
+};
+const DEFAULTS = { wx:0.67, batt:21.6, newLoad:0 };
+const state = { season:'summer', T:{summer:92, winter:18}, wx:0.67, batt:21.6, newLoad:0 };
+
+const PRESETS = [
+  {label:'Record heat, July 2026', set:{season:'summer', T:92, wx:.67, batt:21.6, newLoad:0}},
+  {label:'95 °F day, 2023 batteries', set:{season:'summer', T:95, wx:.67, batt:5.1, newLoad:0}},
+  {label:'Data-center boom (+20 GW)', set:{season:'summer', T:92, wx:.67, batt:21.6, newLoad:20}},
+  {label:'Uri returns, today\'s grid', set:{season:'winter', T:12, wx:.67, batt:21.6, newLoad:0}},
+  {label:'Uri returns, no weatherization', set:{season:'winter', T:12, wx:0, batt:21.6, newLoad:0}},
+  {label:'Reset', set:{...DEFAULTS}}
+];
+
+const chartWidth = svg => Math.round(Math.max(330, Math.min(760, svg.parentElement.clientWidth - 36)));
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const el = (tag, attrs={}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+// ---------- controls ----------
+const sT = $('s-temp'), sL = $('s-load'), sW = $('s-wx'), sB = $('s-batt');
+function syncControls(){
+  const cfg = SEASON[state.season];
+  sT.min = cfg.min; sT.max = cfg.max; sT.step = cfg.step; sT.value = state.T[state.season];
+  $('t-temp').innerHTML = cfg.ticks.map(t=>`<span>${t}</span>`).join('');
+  $('temp-help').textContent = cfg.help;
+  sL.value = state.newLoad; sW.value = Math.round(state.wx*100); sB.value = state.batt;
+  $('btn-summer').setAttribute('aria-pressed', state.season==='summer');
+  $('btn-winter').setAttribute('aria-pressed', state.season==='winter');
+}
+function readControls(){
+  state.T[state.season] = +sT.value; state.newLoad = +sL.value; state.wx = +sW.value/100; state.batt = +sB.value;
+}
+[sT,sL,sW,sB].forEach(s => s.addEventListener('input', () => { readControls(); render(); }));
+$('btn-summer').onclick = () => { state.season='summer'; syncControls(); render(); };
+$('btn-winter').onclick = () => { state.season='winter'; syncControls(); render(); };
+PRESETS.forEach(p => {
+  const b = document.createElement('button'); b.textContent = p.label;
+  b.onclick = () => {
+    const s = p.set;
+    if (s.season) { state.season = s.season; state.T[s.season] = s.T; }
+    else { state.T = {summer:92, winter:18}; }
+    state.wx = s.wx; state.batt = s.batt; state.newLoad = s.newLoad;
+    syncControls(); render();
+  };
+  $('presets').appendChild(b);
+});
+
+// ---------- chart 1: stacked hourly supply vs demand ----------
+const C1 = { W:760, H:330, l:46, r:12, t:12, b:34, ymax:150 };
+const SERIES = [
+  {key:'thermal', label:'Gas, coal & nuclear', color:'--thermal'},
+  {key:'wind', label:'Wind', color:'--wind'},
+  {key:'solar', label:'Solar', color:'--solar'},
+  {key:'batt', label:'Batteries discharging', color:'--batt'}
+];
+function legend1(){
+  $('legend1').innerHTML = SERIES.map(s=>`<span><i style="background:var(${s.color})"></i>${s.label}</span>`).join('')
+    + `<span><i class="line" style="background:var(--ink)"></i>Demand</span>`
+    + `<span><i style="background:repeating-linear-gradient(45deg,var(--warn) 0 3px,transparent 3px 6px);border:1px solid var(--warn)"></i>Gap covered by emergency tools</span>`
+    + `<span><i style="background:var(--crit)"></i>Rolling outages</span>`;
+}
+function drawChart1(res){
+  const svg = $('chart1'); svg.innerHTML = '';
+  const W = chartWidth(svg), H = W < 560 ? 300 : C1.H, {r,t,b,ymax} = C1, l = W < 560 ? 40 : C1.l, pw = W-l-r, ph = H-t-b;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const x = h => l + h/24*pw, y = v => t + ph - Math.min(v,ymax)/ymax*ph;
+  const defs = el('defs',{},svg);
+  const pat = el('pattern',{id:'hatch',width:6,height:6,patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'},defs);
+  el('rect',{width:6,height:6,fill:'transparent'},pat);
+  el('line',{x1:0,y1:0,x2:0,y2:6,stroke:cssVar('--warn'),'stroke-width':3},pat);
+  // grid
+  for (let v=0; v<=ymax; v+=25){
+    el('line',{x1:l,x2:W-r,y1:y(v),y2:y(v),stroke:cssVar(v===0?'--axis':'--grid'),'stroke-width':1},svg);
+    const tx = el('text',{x:l-8,y:y(v)+4,'text-anchor':'end'},svg); tx.textContent = v;
+  }
+  const yl = el('text',{x:12,y:t+ph/2,transform:`rotate(-90 12 ${t+ph/2})`,'text-anchor':'middle',class:'lbl'},svg); yl.textContent='Gigawatts (GW)';
+  for (let h=0; h<=24; h+= W < 560 ? 6 : 3){ const tx = el('text',{x:x(h),y:H-14,'text-anchor':'middle'},svg); tx.textContent = hourShort(h); }
+  const xl = el('text',{x:l+pw/2,y:H,'text-anchor':'middle',class:'lbl'},svg); xl.textContent='Hour of day (local time)';
+  // stacked hourly bars with 2px gaps between hours
+  const bw = pw/24;
+  res.hours.forEach(d => {
+    let base = 0;
+    SERIES.forEach(s => {
+      const v = d[s.key]; if (v <= 0.05) return;
+      const y0 = y(base), y1 = y(base+v);
+      el('rect',{x:x(d.h)+1,y:y1,width:bw-2,height:Math.max(0,y0-y1-(base>0?1:0)),fill:cssVar(s.color)},svg);
+      base += v;
+    });
+    const supply = base, gap = d.demand - supply;
+    if (gap > 0){
+      const cover = Math.min(gap, 4.3);
+      el('rect',{x:x(d.h)+1,y:y(supply+cover),width:bw-2,height:y(supply)-y(supply+cover),fill:'url(#hatch)',stroke:cssVar('--warn'),'stroke-width':1},svg);
+      if (d.shed > 0) el('rect',{x:x(d.h)+1,y:y(d.demand),width:bw-2,height:y(supply+cover)-y(d.demand),fill:cssVar('--crit')},svg);
+    }
+  });
+  // demand step line
+  let path = '';
+  res.hours.forEach((d,i) => { path += (i===0?`M${x(0)},${y(d.demand)}`:`L${x(d.h)},${y(d.demand)}`) + `L${x(d.h+1)},${y(d.demand)}`; });
+  el('path',{d:path,fill:'none',stroke:cssVar('--ink'),'stroke-width':2.5,'stroke-linejoin':'round'},svg);
+  // direct label on demand peak
+  const pk = res.hours.reduce((a,d)=>d.demand>a.demand?d:a,res.hours[0]);
+  const pkTop = Math.max(pk.demand, pk.thermal + pk.wind + pk.solar + pk.batt);
+  const lab = el('text',{x:Math.min(Math.max(x(pk.h+0.5), l+90),W-r-4),y:y(pkTop)-8,'text-anchor':pk.h>19?'end':'middle',class:'lbl-strong'},svg);
+  lab.textContent = `Demand peaks at ${fmt(pk.demand,1)} GW`;
+  // hover layer
+  const cross = el('line',{y1:t,y2:t+ph,stroke:cssVar('--ink2'),'stroke-width':1,opacity:0},svg);
+  const hit = el('rect',{x:l,y:t,width:pw,height:ph,fill:'transparent'},svg);
+  const tip = $('tip1'), card = $('card1');
+  const move = ev => {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const h = Math.max(0, Math.min(23, Math.floor((p.x-l)/pw*24)));
+    const d = res.hours[h];
+    cross.setAttribute('x1', x(h+0.5)); cross.setAttribute('x2', x(h+0.5)); cross.setAttribute('opacity', 1);
+    const st = d.status==='outage' ? `<span style="color:var(--crit);font-weight:700">⛔ Rolling outages: ${fmt(d.shed)} GW</span>` : d.status==='emergency' ? `<span style="font-weight:700">⚠️ Emergency, no outages</span>` : `<span style="color:var(--goodtext);font-weight:700">✓ OK</span>`;
+    tip.innerHTML = `<b>${hourLabel(h)} – ${hourLabel(h+1)}</b>
+      <div class="row"><span>Demand</span><span><b style="display:inline">${fmt(d.demand)} GW</b></span></div>
+      ${SERIES.map(s=>`<div class="row"><span><i class="sw" style="background:var(${s.color})"></i>${s.label}</span><span>${fmt(d[s.key])} GW</span></div>`).join('')}
+      <div class="row"><span>Spare power</span><span>${fmt(d.margin)} GW</span></div>
+      <div class="row"><span>Battery charge left</span><span>${Math.round(d.soc*100)}%</span></div>
+      <div style="margin-top:6px">${st}</div>`;
+    const cr = card.getBoundingClientRect();
+    let left = ev.clientX - cr.left + 14; if (left + 230 > cr.width) left = ev.clientX - cr.left - 244;
+    tip.style.left = left + 'px'; tip.style.top = (ev.clientY - cr.top - 20) + 'px'; tip.classList.add('show');
+  };
+  hit.addEventListener('pointermove', move);
+  hit.addEventListener('pointerleave', () => { tip.classList.remove('show'); cross.setAttribute('opacity',0); });
+}
+
+function fillTable(res){
+  const rows = res.hours.map(d => `<tr><td>${hourLabel(d.h)}</td><td>${fmt(d.demand)}</td><td>${fmt(d.thermal)}</td><td>${fmt(d.wind)}</td><td>${fmt(d.solar)}</td><td>${fmt(d.batt)}</td><td>${fmt(d.margin)}</td><td>${d.shed>0?fmt(d.shed):'–'}</td></tr>`).join('');
+  $('tbl').innerHTML = `<thead><tr><th>Hour starting</th><th>Demand (GW)</th><th>Gas/coal/nuclear (GW)</th><th>Wind (GW)</th><th>Solar (GW)</th><th>Batteries (GW)</th><th>Spare power (GW)</th><th>Rolling outages (GW)</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+// ---------- chart 2: the cliff ----------
+const C2 = { W:760, H:300, l:52, r:14, t:16, b:40 };
+function drawChart2(){
+  const cfg = SEASON[state.season], svg = $('chart2'); svg.innerHTML = '';
+  const W = chartWidth(svg), {H,l,r,t,b} = C2, pw = W-l-r, ph = H-t-b;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const params = {season:state.season, wx:state.wx, batt:state.batt, newLoad:state.newLoad};
+  const counter = {...params, [cfg.counter.key]: cfg.counter.value};
+  const pts = [], cpts = [];
+  for (let T = cfg.min; T <= cfg.max + 1e-9; T += 0.5){
+    pts.push({T, v: simulate({...params, T}).peakShed});
+    cpts.push({T, v: simulate({...counter, T}).peakShed});
+  }
+  const vmax = Math.max(10, ...pts.map(p=>p.v), ...cpts.map(p=>p.v));
+  const ymax = Math.ceil(vmax/10)*10;
+  const x = T => l + (T-cfg.min)/(cfg.max-cfg.min)*pw, y = v => t + ph - v/ymax*ph;
+  for (let v=0; v<=ymax; v+= ymax>40?20:10){
+    el('line',{x1:l,x2:W-r,y1:y(v),y2:y(v),stroke:cssVar(v===0?'--axis':'--grid')},svg);
+    const tx = el('text',{x:l-8,y:y(v)+4,'text-anchor':'end'},svg); tx.textContent = v;
+  }
+  const yl = el('text',{x:14,y:t+ph/2,transform:`rotate(-90 14 ${t+ph/2})`,'text-anchor':'middle',class:'lbl'},svg); yl.textContent='Rolling outages (GW)';
+  const span = cfg.max - cfg.min, stp = span > 30 ? 5 : 2;
+  for (let T = Math.ceil(cfg.min/stp)*stp; T <= cfg.max; T += stp){ const tx = el('text',{x:x(T),y:H-20,'text-anchor':'middle'},svg); tx.textContent = T; }
+  const xl = el('text',{x:l+pw/2,y:H-2,'text-anchor':'middle',class:'lbl'},svg); xl.textContent='Statewide average temperature for the day (°F)';
+  cfg.marks.forEach(m => {
+    el('line',{x1:x(m.T),x2:x(m.T),y1:t,y2:t+ph,stroke:cssVar('--axis'),'stroke-width':1},svg);
+    const tx = el('text',{x:x(m.T)+5,y:t+12},svg); tx.textContent = m.label;
+  });
+  const line = (arr, color) => { let d=''; arr.forEach((p,i)=> d += (i?'L':'M') + x(p.T) + ',' + y(p.v)); el('path',{d,fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round'},svg); };
+  line(cpts, cssVar('--line2'));
+  line(pts, cssVar('--line1'));
+  const Tnow = state.T[state.season], vnow = simulate({...params, T:Tnow}).peakShed;
+  el('circle',{cx:x(Tnow),cy:y(vnow),r:7,fill:cssVar('--line1'),stroke:cssVar('--surface'),'stroke-width':2.5},svg);
+  const yo = vnow/ymax > 0.75 ? 22 : -14;
+  const lab = el('text',{x:x(Tnow),y:y(vnow)+yo,'text-anchor': x(Tnow) > W-160 ? 'end' : (x(Tnow) < l+120 ? 'start':'middle'),class:'lbl-strong'},svg);
+  lab.textContent = `You are here: ${fmt(vnow)} GW`;
+  $('legend2').innerHTML = `<span><i class="line" style="background:var(--line1)"></i>Your settings</span><span><i class="line" style="background:var(--line2)"></i>${cfg.counter.label}</span>`;
+  $('c2-cap').textContent = cfg.cap;
+  // hover
+  const cross = el('line',{y1:t,y2:t+ph,stroke:cssVar('--ink2'),'stroke-width':1,opacity:0},svg);
+  const hit = el('rect',{x:l,y:t,width:pw,height:ph,fill:'transparent'},svg);
+  const tip = $('tip2'), card = $('card2');
+  hit.addEventListener('pointermove', ev => {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const i = Math.max(0, Math.min(pts.length-1, Math.round((p.x-l)/pw*(pts.length-1))));
+    cross.setAttribute('x1', x(pts[i].T)); cross.setAttribute('x2', x(pts[i].T)); cross.setAttribute('opacity',1);
+    const homes = v => v>0 ? ` (≈${fmt(v*1000*GRID.homesPerMW[state.season]/1e6,1)}M homes)` : '';
+    tip.innerHTML = `<b>${fmt(pts[i].T)} °F statewide average</b>
+      <div class="row"><span><i class="sw" style="background:var(--line1)"></i>Your settings</span><span>${fmt(pts[i].v)} GW${homes(pts[i].v)}</span></div>
+      <div class="row"><span><i class="sw" style="background:var(--line2)"></i>${cfg.counter.label.replace('With ','')}</span><span>${fmt(cpts[i].v)} GW${homes(cpts[i].v)}</span></div>`;
+    const cr = card.getBoundingClientRect();
+    let left = ev.clientX - cr.left + 14; if (left + 320 > cr.width) left = ev.clientX - cr.left - 330;
+    tip.style.left = left + 'px'; tip.style.top = (ev.clientY - cr.top - 10) + 'px'; tip.classList.add('show');
+  });
+  hit.addEventListener('pointerleave', () => { tip.classList.remove('show'); cross.setAttribute('opacity',0); });
+}
+
+// ---------- tiles + status ----------
+function render(){
+  const cfg = SEASON[state.season], T = state.T[state.season];
+  const res = simulate({season:state.season, T, wx:state.wx, batt:state.batt, newLoad:state.newLoad});
+  $('o-temp').textContent = `${fmt(T)} °F`;
+  $('temp-sub').textContent = cfg.sub(T);
+  $('o-load').textContent = `+${state.newLoad} GW`;
+  $('o-wx').textContent = `${Math.round(state.wx*100)}%`;
+  $('o-batt').textContent = `${fmt(state.batt)} GW`;
+
+  $('k-peak').innerHTML = `${fmt(res.peakDemand)} <small>GW</small>`;
+  $('k-peak-n').textContent = `Record so far: 91.1 GW (Jul 2026)`;
+  const tg = res.tight;
+  $('k-tight').innerHTML = `${hourShort(tg.h)}–${hourShort(tg.h+1)}`;
+  $('k-tight-n').textContent = tg.margin >= 0 ? `${fmt(tg.margin)} GW to spare` : `short by ${fmt(-tg.margin)} GW before emergency tools`;
+  $('k-shed').innerHTML = res.peakShed > 0 ? `${fmt(res.peakShed)} <small>GW</small>` : `None`;
+  $('k-shed-n').textContent = res.peakShed > 0 ? `${res.shedHours} hour${res.shedHours>1?'s':''} · ${fmt(res.unserved,0)} GWh not delivered` : (res.emergencyHours ? `${res.emergencyHours} hour${res.emergencyHours>1?'s':''} in emergency` : 'No emergency hours');
+  $('k-homes').innerHTML = res.homesDark > 0 ? `${res.homesDark >= 1e6 ? fmt(res.homesDark/1e6,1)+' <small>million</small>' : fmt(Math.round(res.homesDark/1e3)*1e3,0)}` : '0';
+  $('k-homes-n').textContent = `≈${GRID.homesPerMW[state.season]} homes per MW in ${state.season}`;
+
+  const st = $('status');
+  const worst = res.peakShed > 0 ? 'outage' : (res.emergencyHours > 0 ? 'emergency' : 'ok');
+  st.className = 'status ' + worst;
+  const outPct = Math.round(res.fOut*100);
+  if (worst === 'ok'){
+    $('status-icon').textContent = '✓';
+    $('status-title').textContent = 'Lights stay on';
+    $('status-why').textContent = `At the tightest hour (${hourLabel(tg.h)}) there's still ${fmt(tg.margin)} GW to spare. ${outPct}% of gas, coal & nuclear capacity is out.`;
+  } else if (worst === 'emergency'){
+    $('status-icon').textContent = '!';
+    $('status-title').textContent = 'Grid emergency, but no outages';
+    $('status-why').textContent = `ERCOT would call an Energy Emergency Alert for ${res.emergencyHours} hour${res.emergencyHours>1?'s':''}. Conservation appeals, flexible large loads and emergency tools cover the gap. ${outPct}% of gas, coal & nuclear capacity is out.`;
+  } else {
+    $('status-icon').textContent = '✕';
+    $('status-title').textContent = `Rolling outages: about ${res.homesDark>=1e6 ? fmt(res.homesDark/1e6,1)+' million' : fmt(Math.round(res.homesDark/1e3),0)+',000'} homes lose power`;
+    $('status-why').textContent = `ERCOT must cut up to ${fmt(res.peakShed)} GW for ${res.shedHours} hour${res.shedHours>1?'s':''}. ${outPct}% of gas, coal & nuclear capacity is out${state.season==='winter'?' from frozen equipment and gas-supply failures':''}.`;
+  }
+  drawChart1(res); fillTable(res); drawChart2();
+}
+
+legend1(); syncControls(); render();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 120); });
+})();
+</script>
+</body>
+</html>
